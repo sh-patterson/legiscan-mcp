@@ -2,6 +2,9 @@
 src/
 tsconfig.json
 
+# Claude Code settings
+.claude/
+
 # Test files
 tests/
 test/
