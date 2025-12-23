@@ -1,9 +1,9 @@
 /**
  * E2E Test Suite for LegiScan MCP Server
  *
- * Mirrors the AutoSkeleton analysis pipeline workflow:
+ * Tests the full legislative data workflow:
  * 1. Session discovery
- * 2. Bill search (scorecard extraction equivalent)
+ * 2. Bill search
  * 3. Bill enrichment
  * 4. Text retrieval
  * 5. Roll call vote analysis
