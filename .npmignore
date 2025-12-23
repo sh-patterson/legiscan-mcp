@@ -1,0 +1,31 @@
+# Source files (only publish dist)
+src/
+tsconfig.json
+
+# Test files
+tests/
+test/
+*.test.ts
+*.spec.ts
+vitest.config.ts
+
+# Dev config
+.github/
+.vscode/
+.env
+.env.example
+eslint.config.js
+.prettierrc
+
+# Git
+.git/
+.gitignore
+
+# Build artifacts
+*.tgz
+
+# Keep these (explicitly)
+!dist/
+!README.md
+!LICENSE
+!package.json

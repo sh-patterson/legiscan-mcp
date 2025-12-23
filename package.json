@@ -4,6 +4,9 @@
   "description": "MCP server for LegiScan API - Access legislative data from all 50 US states",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "legiscan-mcp": "./dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",

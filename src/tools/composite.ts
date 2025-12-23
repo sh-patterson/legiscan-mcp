@@ -98,10 +98,7 @@ function isPrimaryAuthor(sponsor: Sponsor): boolean {
 // Composite Tool Registration
 // ============================================
 
-export function registerCompositeTools(
-  server: McpServer,
-  client: LegiScanClient
-) {
+export function registerCompositeTools(server: McpServer, client: LegiScanClient) {
   // ============================================
   // Tool 1: Get Legislator Votes (BIGGEST WIN)
   // ============================================
@@ -110,9 +107,7 @@ export function registerCompositeTools(
     "Get how a legislator voted on specific bills. Reduces hundreds of API calls to one. Returns vote positions (Yea/Nay/NV/Absent) for each bill with roll call details.",
     {
       people_id: z.number().describe("Legislator people_id to look up votes for"),
-      bill_ids: z
-        .array(z.number())
-        .describe("Array of bill_ids to check votes on"),
+      bill_ids: z.array(z.number()).describe("Array of bill_ids to check votes on"),
       chamber: z
         .enum(["H", "S", "A"])
         .optional()
@@ -136,10 +131,7 @@ export function registerCompositeTools(
         let legislatorName = "";
 
         // Fetch all bills in batches to avoid rate limits
-        const billResults = await processBatched(
-          bill_ids,
-          (id) => client.getBill(id)
-        );
+        const billResults = await processBatched(bill_ids, (id) => client.getBill(id));
 
         for (let i = 0; i < billResults.length; i++) {
           const result = billResults[i];
@@ -164,9 +156,8 @@ export function registerCompositeTools(
           }
 
           // Fetch all roll calls for this bill in batches
-          const rollCallResults = await processBatched(
-            voteRefs,
-            (v) => client.getRollCall(v.roll_call_id)
+          const rollCallResults = await processBatched(voteRefs, (v) =>
+            client.getRollCall(v.roll_call_id)
           );
 
           for (let j = 0; j < rollCallResults.length; j++) {
@@ -183,16 +174,12 @@ export function registerCompositeTools(
             const rollCall = rcResult.value;
 
             // Find this legislator's vote
-            const individualVote = rollCall.votes.find(
-              (v) => v.people_id === people_id
-            );
+            const individualVote = rollCall.votes.find((v) => v.people_id === people_id);
 
             if (individualVote) {
               // Try to get legislator name from bill sponsors
               if (!legislatorName) {
-                const sponsor = bill.sponsors.find(
-                  (s) => s.people_id === people_id
-                );
+                const sponsor = bill.sponsors.find((s) => s.people_id === people_id);
                 if (sponsor) legislatorName = sponsor.name;
               }
 
@@ -246,10 +233,7 @@ export function registerCompositeTools(
       people_id: z
         .number()
         .describe("Legislator people_id to get primary authored bills for"),
-      session_id: z
-        .number()
-        .optional()
-        .describe("Optional session_id to filter results"),
+      session_id: z.number().optional().describe("Optional session_id to filter results"),
       state: z
         .string()
         .optional()
@@ -265,9 +249,7 @@ export function registerCompositeTools(
         // Filter by session if specified
         let filteredBills = sponsoredBills;
         if (session_id) {
-          filteredBills = sponsoredBills.filter(
-            (b) => b.session_id === session_id
-          );
+          filteredBills = sponsoredBills.filter((b) => b.session_id === session_id);
         } else if (state) {
           // Get current session for state and filter
           const currentSession = await getCurrentSession(client, state);
@@ -291,9 +273,8 @@ export function registerCompositeTools(
         let legislatorName = "";
 
         // Fetch all bill details in batches to avoid rate limits
-        const billResults = await processBatched(
-          filteredBills,
-          (b) => client.getBill(b.bill_id)
+        const billResults = await processBatched(filteredBills, (b) =>
+          client.getBill(b.bill_id)
         );
 
         for (let i = 0; i < billResults.length; i++) {

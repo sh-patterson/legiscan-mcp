@@ -7,7 +7,7 @@
 export function normalizeBillNumber(input: string): string {
   return input
     .toUpperCase()
-    .replace(/[\s.\-]/g, "") // Remove spaces, dots, dashes
+    .replace(/[\s.-]/g, "") // Remove spaces, dots, dashes
     .replace(/^([A-Z]+)0+(\d)/, "$1$2"); // Strip leading zeros: AB0858 → AB858
 }
 

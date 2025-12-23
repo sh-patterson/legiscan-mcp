@@ -52,7 +52,9 @@ export function registerBillTools(server: McpServer, client: LegiScanClient) {
       session_id: z
         .number()
         .optional()
-        .describe("Session ID for searching a specific session. Takes precedence over state."),
+        .describe(
+          "Session ID for searching a specific session. Takes precedence over state."
+        ),
       bill_number: z
         .string()
         .describe(

@@ -14,6 +14,23 @@ A Model Context Protocol (MCP) server that provides access to the [LegiScan API]
 - Full TypeScript type definitions for all API responses
 - Bill number normalization (handles AB 858, AB858, AB-858 formats)
 
+## Installation
+
+### From npm (Recommended)
+
+```bash
+npm install -g legiscan-mcp-server
+```
+
+### From Source
+
+```bash
+git clone https://github.com/sh-patterson/legiscan-mcp.git
+cd legiscan-mcp
+npm install
+npm run build
+```
+
 ## Setup
 
 ### 1. Get a LegiScan API Key
@@ -22,32 +39,30 @@ A Model Context Protocol (MCP) server that provides access to the [LegiScan API]
 2. Register for API access at https://legiscan.com/legiscan
 3. Copy your API key
 
-### 2. Install Dependencies
-
-```bash
-cd legiscan-mcp-server
-npm install
-```
-
-### 3. Configure Environment
-
-```bash
-cp .env.example .env
-# Edit .env and add your API key
-```
-
-### 4. Build
-
-```bash
-npm run build
-```
-
-### 5. Add to Claude Desktop
+### 2. Add to Claude Desktop
 
 Add to your Claude Desktop configuration:
 
 **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+#### Using npx (Recommended)
+
+```json
+{
+  "mcpServers": {
+    "legiscan": {
+      "command": "npx",
+      "args": ["-y", "legiscan-mcp-server"],
+      "env": {
+        "LEGISCAN_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}
+```
+
+#### Using local installation
 
 ```json
 {
@@ -146,7 +161,8 @@ npm run format       # Format code with Prettier
 ## API Limits
 
 - Free public API keys have a **30,000 queries per month** limit
-- The composite tools help you stay within limits by batching operations
+- Composite tools batch requests (10 concurrent max) to avoid rate limits
+- The composite tools help you stay within limits by reducing total API calls
 
 ## License
 
