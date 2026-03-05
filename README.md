@@ -215,6 +215,26 @@ npm run format       # Format code with Prettier
 - Composite tools batch requests (10 concurrent max) to avoid rate limits
 - The composite tools help you stay within limits by reducing total API calls
 
+## Docker
+
+Build the container image locally:
+
+```bash
+docker build -t legiscan-mcp .
+```
+
+Run it with your API key provided at runtime:
+
+```bash
+docker run --rm -i \
+  -e LEGISCAN_API_KEY=your-api-key-here \
+  legiscan-mcp
+```
+
+## Releases
+
+Glama checks expect a GitHub release. Create and publish a tag such as `v1.0.0` after pushing changes.
+
 ## License
 
 MIT - see [LICENSE](LICENSE) for details.

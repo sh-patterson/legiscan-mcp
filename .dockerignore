@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.github
+.claude
+.env
+.env.*
+coverage
+*.log
+tests
+CLAUDE.md
