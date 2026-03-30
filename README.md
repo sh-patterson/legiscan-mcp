@@ -9,6 +9,10 @@ A Model Context Protocol (MCP) server that gives terminal agents structured acce
 
 Built for research workflows where you direct an agent (Codex, Claude Code, Claude Desktop, etc.) to gather bill history, sponsor context, and voting records quickly.
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/sh-patterson-legiscan-mcp).
+
 ## Features
 
 - **10 Streamlined MCP Tools** optimized for legislative research workflows
