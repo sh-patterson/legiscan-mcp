@@ -374,19 +374,35 @@ export class LegiScanClient {
     summary: SearchSummary;
     results: SearchRawResultItem[];
   }> {
+    const searchParams = this.buildSearchParams(params);
     const primaryResponse = await this.request<SearchRawResponse>(
       "getSearchRaw",
-      this.buildSearchParams(params)
+      searchParams
     );
     const primaryResult = {
       summary: primaryResponse.searchresult.summary,
       results: primaryResponse.searchresult.results,
     };
 
-    const canonicalQuery = this.getCanonicalBillSearchRetryQuery(
-      params.query,
-      primaryResult.results
-    );
+    let canonicalQuery: string | null;
+
+    if (primaryResult.results.length === 0) {
+      canonicalQuery = this.getCanonicalBillSearchRetryQuery(
+        params.query,
+        primaryResult.results
+      );
+    } else {
+      const verificationResponse = await this.request<SearchResponse>(
+        "getSearch",
+        searchParams
+      );
+      const verificationResult = this.parseSearchResponse(verificationResponse);
+      canonicalQuery = this.getCanonicalBillSearchRetryQuery(
+        params.query,
+        verificationResult.results,
+        (item) => item.bill_number
+      );
+    }
 
     if (!canonicalQuery) {
       return primaryResult;
