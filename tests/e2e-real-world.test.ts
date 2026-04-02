@@ -61,7 +61,8 @@ describeE2E("Legislator Identification Workflow", () => {
 
     // Try to find Alex Lee
     const alexLee = sessionPeople.people.find(
-      (p) => p.name?.toLowerCase().includes("lee") && p.first_name?.toLowerCase() === "alex"
+      (p) =>
+        p.name?.toLowerCase().includes("lee") && p.first_name?.toLowerCase() === "alex"
     );
 
     expect(alexLee).toBeDefined();
@@ -117,8 +118,8 @@ describeE2E("Bill Number Lookup Workflow", () => {
     expect(result.results.length).toBeGreaterThan(0);
 
     // First result should match
-    const match = result.results.find((b) =>
-      b.bill_number?.replace(/\s/g, "").toUpperCase() === "AB858"
+    const match = result.results.find(
+      (b) => b.bill_number?.replace(/\s/g, "").toUpperCase() === "AB858"
     );
     expect(match).toBeDefined();
   });
@@ -142,7 +143,9 @@ describeE2E("Bill Number Lookup Workflow", () => {
 
     expect(result.results.length).toBeGreaterThan(0);
     expect(
-      result.results.some((b) => b.bill_number?.replace(/\s/g, "").toUpperCase() === "AB858")
+      result.results.some(
+        (b) => b.bill_number?.replace(/\s/g, "").toUpperCase() === "AB858"
+      )
     ).toBe(true);
   });
 
@@ -337,7 +340,9 @@ describeE2E("Roll Call Vote Analysis Workflow", () => {
     }
 
     // May not find a close vote in first 20 bills
-    console.log(`Close vote search complete: ${closeVoteFound ? "found" : "not found in sample"}`);
+    console.log(
+      `Close vote search complete: ${closeVoteFound ? "found" : "not found in sample"}`
+    );
   });
 });
 
@@ -411,7 +416,8 @@ describeE2E("Scorecard Extraction Pipeline", () => {
 
   it("should get voting alignment for target legislators on scorecard bills", async () => {
     const targetIds = [21719, 23214, 23155, 23210, 25359];
-    const alignmentData: Record<number, { yes: number; no: number; notFound: number }> = {};
+    const alignmentData: Record<number, { yes: number; no: number; notFound: number }> =
+      {};
 
     for (const id of targetIds) {
       alignmentData[id] = { yes: 0, no: 0, notFound: 0 };
@@ -495,7 +501,9 @@ describeE2E("Session Mapping Workflow", () => {
     const currentSession = sessions.find((s) => s.session_id && s.special === 0);
 
     expect(currentSession).toBeDefined();
-    console.log(`Current CA session: ${currentSession?.session_id} (${currentSession?.name})`);
+    console.log(
+      `Current CA session: ${currentSession?.session_id} (${currentSession?.name})`
+    );
   });
 });
 
@@ -604,7 +612,9 @@ describeE2E("Opposition Research Complete Workflow", () => {
       if (search.results.length === 0) continue;
 
       const bill = await client.getBill(search.results[0].bill_id);
-      const assemblyVote = bill.votes?.find((v) => v.chamber === "A" || v.chamber === "H");
+      const assemblyVote = bill.votes?.find(
+        (v) => v.chamber === "A" || v.chamber === "H"
+      );
 
       if (!assemblyVote) {
         voteRecord[billNum] = "No Assembly vote found";
@@ -612,7 +622,9 @@ describeE2E("Opposition Research Complete Workflow", () => {
       }
 
       const rollCall = await client.getRollCall(assemblyVote.roll_call_id);
-      const myVote = rollCall.votes?.find((v) => v.people_id === TARGET_LEGISLATOR.people_id);
+      const myVote = rollCall.votes?.find(
+        (v) => v.people_id === TARGET_LEGISLATOR.people_id
+      );
 
       voteRecord[billNum] = myVote?.vote_text || "Not found";
     }
