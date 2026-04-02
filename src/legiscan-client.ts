@@ -375,6 +375,7 @@ export class LegiScanClient {
     results: SearchRawResultItem[];
   }> {
     const searchParams = this.buildSearchParams(params);
+    const initialCanonicalQuery = canonicalizeBillSearchQuery(params.query);
     const primaryResponse = await this.request<SearchRawResponse>(
       "getSearchRaw",
       searchParams
@@ -384,23 +385,16 @@ export class LegiScanClient {
       results: primaryResponse.searchresult.results,
     };
 
-    let canonicalQuery: string | null;
+    if (initialCanonicalQuery === null || initialCanonicalQuery === params.query) {
+      return primaryResult;
+    }
 
-    if (primaryResult.results.length === 0) {
-      canonicalQuery = this.getCanonicalBillSearchRetryQuery(
-        params.query,
-        primaryResult.results
-      );
-    } else {
-      const verificationResponse = await this.request<SearchResponse>(
-        "getSearch",
+    let canonicalQuery = this.getCanonicalBillSearchRetryQuery(params.query, []);
+
+    if (primaryResult.results.length > 0) {
+      canonicalQuery = await this.getCanonicalBillSearchRetryQueryFromParsedSearch(
+        params,
         searchParams
-      );
-      const verificationResult = this.parseSearchResponse(verificationResponse);
-      canonicalQuery = this.getCanonicalBillSearchRetryQuery(
-        params.query,
-        verificationResult.results,
-        (item) => item.bill_number
       );
     }
 
@@ -459,6 +453,27 @@ export class LegiScanClient {
       summary: response.searchresult.summary as SearchSummary,
       results,
     };
+  }
+
+  private async getCanonicalBillSearchRetryQueryFromParsedSearch(
+    params: SearchParams,
+    searchParams: Record<string, string | number | undefined>
+  ): Promise<string | null> {
+    try {
+      const verificationResponse = await this.request<SearchResponse>(
+        "getSearch",
+        searchParams
+      );
+      const verificationResult = this.parseSearchResponse(verificationResponse);
+
+      return this.getCanonicalBillSearchRetryQuery(
+        params.query,
+        verificationResult.results,
+        (item) => item.bill_number
+      );
+    } catch {
+      return null;
+    }
   }
 
   private getCanonicalBillSearchRetryQuery<T>(

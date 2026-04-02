@@ -39,6 +39,11 @@ export function canonicalizeBillSearchQuery(input: string): string | null {
     return `${specialSessionMatch[1]} ${stripLeadingZeros(specialSessionMatch[2])}`;
   }
 
+  const hyphenatedSpecialSessionMatch = compact.match(/^([A-Z]+X\d)-(\d+[A-Z]?)$/);
+  if (hyphenatedSpecialSessionMatch) {
+    return `${hyphenatedSpecialSessionMatch[1]} ${stripLeadingZeros(hyphenatedSpecialSessionMatch[2])}`;
+  }
+
   const prefixedHyphenMatch = compact.match(/^([A-Z]+)-(\d+[A-Z]?)$/);
   if (prefixedHyphenMatch) {
     return `${prefixedHyphenMatch[1]} ${stripLeadingZeros(prefixedHyphenMatch[2])}`;
