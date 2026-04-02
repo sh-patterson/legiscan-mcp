@@ -346,13 +346,13 @@ export class LegiScanClient {
     );
     const primaryResult = this.parseSearchResponse(primaryResponse);
 
-    const canonicalQuery = canonicalizeBillSearchQuery(params.query);
-    const shouldRetry =
-      primaryResult.results.length === 0 &&
-      canonicalQuery !== null &&
-      canonicalQuery !== params.query;
+    const canonicalQuery = this.getCanonicalBillSearchRetryQuery(
+      params.query,
+      primaryResult.results,
+      (item) => item.bill_number
+    );
 
-    if (!shouldRetry) {
+    if (!canonicalQuery) {
       return primaryResult;
     }
 
@@ -361,7 +361,9 @@ export class LegiScanClient {
       this.buildSearchParams({ ...params, query: canonicalQuery })
     );
 
-    return this.parseSearchResponse(fallbackResponse);
+    const fallbackResult = this.parseSearchResponse(fallbackResponse);
+
+    return fallbackResult.results.length > 0 ? fallbackResult : primaryResult;
   }
 
   /**
@@ -381,13 +383,12 @@ export class LegiScanClient {
       results: primaryResponse.searchresult.results,
     };
 
-    const canonicalQuery = canonicalizeBillSearchQuery(params.query);
-    const shouldRetry =
-      primaryResult.results.length === 0 &&
-      canonicalQuery !== null &&
-      canonicalQuery !== params.query;
+    const canonicalQuery = this.getCanonicalBillSearchRetryQuery(
+      params.query,
+      primaryResult.results
+    );
 
-    if (!shouldRetry) {
+    if (!canonicalQuery) {
       return primaryResult;
     }
 
@@ -396,10 +397,12 @@ export class LegiScanClient {
       this.buildSearchParams({ ...params, query: canonicalQuery })
     );
 
-    return {
+    const fallbackResult = {
       summary: fallbackResponse.searchresult.summary,
       results: fallbackResponse.searchresult.results,
     };
+
+    return fallbackResult.results.length > 0 ? fallbackResult : primaryResult;
   }
 
   private buildSearchParams(
@@ -440,6 +443,36 @@ export class LegiScanClient {
       summary: response.searchresult.summary as SearchSummary,
       results,
     };
+  }
+
+  private getCanonicalBillSearchRetryQuery<T>(
+    query: string,
+    results: T[],
+    getBillNumber?: (item: T) => string | undefined
+  ): string | null {
+    const canonicalQuery = canonicalizeBillSearchQuery(query);
+
+    if (canonicalQuery === null || canonicalQuery === query) {
+      return null;
+    }
+
+    if (results.length === 0) {
+      return canonicalQuery;
+    }
+
+    if (!getBillNumber) {
+      return canonicalQuery;
+    }
+
+    const normalizedQuery = normalizeBillNumber(query);
+    const hasExactMatch = results.some((item) => {
+      const billNumber = getBillNumber(item);
+      return (
+        billNumber !== undefined && normalizeBillNumber(billNumber) === normalizedQuery
+      );
+    });
+
+    return hasExactMatch ? null : canonicalQuery;
   }
 
   // ============================================

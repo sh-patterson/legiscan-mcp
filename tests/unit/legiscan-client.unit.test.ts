@@ -236,6 +236,78 @@ describe("LegiScanClient (unit)", () => {
     expect(result.results[0]?.bill_id).toBe(858);
   });
 
+  it("retries bill-number searches when the initial results are only fuzzy matches", async () => {
+    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "OK",
+          searchresult: {
+            summary: {
+              page: "1",
+              range: "1-1",
+              relevancy: "100%",
+              count: 1,
+              page_current: 1,
+              page_total: 1,
+            },
+            "0": {
+              relevance: 99,
+              state: "CA",
+              bill_number: "ABX1 5",
+              bill_id: 1005,
+              change_hash: "abc",
+              url: "https://example.com",
+              text_url: "https://example.com/text",
+              research_url: "https://example.com/research",
+              last_action_date: "2026-01-01",
+              last_action: "Introduced",
+              title: "Wrong fuzzy bill",
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "OK",
+          searchresult: {
+            summary: {
+              page: "1",
+              range: "1-1",
+              relevancy: "100%",
+              count: 1,
+              page_current: 1,
+              page_total: 1,
+            },
+            "0": {
+              relevance: 100,
+              state: "CA",
+              bill_number: "AB 5",
+              bill_id: 5,
+              change_hash: "def",
+              url: "https://example.com/ab5",
+              text_url: "https://example.com/ab5/text",
+              research_url: "https://example.com/ab5/research",
+              last_action_date: "2026-01-01",
+              last_action: "Introduced",
+              title: "Correct bill",
+            },
+          },
+        })
+      );
+
+    const client = new LegiScanClient(TEST_API_KEY);
+    const result = await client.getSearch({ query: "AB5", session_id: 2172 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("query")).toBe(
+      "AB 5"
+    );
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0]?.bill_id).toBe(5);
+    expect(result.results[0]?.bill_number).toBe("AB 5");
+  });
+
   it("preserves special-session markers in bill-number retry queries", async () => {
     const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
@@ -349,6 +421,65 @@ describe("LegiScanClient (unit)", () => {
     expect(firstUrl.searchParams.get("query")).toBe("AB858");
     expect(secondUrl.searchParams.get("query")).toBe("AB 858");
     expect(result.results[0]?.bill_id).toBe(858);
+  });
+
+  it("retries raw bill-number searches even when the initial results are non-empty", async () => {
+    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "OK",
+          searchresult: {
+            summary: {
+              page: "1",
+              range: "1-1",
+              relevancy: "90%",
+              count: 1,
+              page_current: 1,
+              page_total: 1,
+            },
+            results: [
+              {
+                relevance: 90,
+                bill_id: 1005,
+                change_hash: "abc",
+              },
+            ],
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "OK",
+          searchresult: {
+            summary: {
+              page: "1",
+              range: "1-1",
+              relevancy: "100%",
+              count: 1,
+              page_current: 1,
+              page_total: 1,
+            },
+            results: [
+              {
+                relevance: 100,
+                bill_id: 5,
+                change_hash: "def",
+              },
+            ],
+          },
+        })
+      );
+
+    const client = new LegiScanClient(TEST_API_KEY);
+    const result = await client.getSearchRaw({ query: "AB5", session_id: 2172 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get("query")).toBe(
+      "AB 5"
+    );
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0]?.bill_id).toBe(5);
   });
 
   it("filters non-bill entries from master list", async () => {
