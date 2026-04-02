@@ -304,7 +304,7 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
   // ============================================
   server.tool(
     "legiscan_get_primary_authored",
-    "Get only bills where a legislator is the PRIMARY author, not co-sponsor. Use find_legislator first to get people_id from a name, then pass state or session_id so results stay scoped to the intended legislature and timeframe.",
+    "Get only bills where a legislator is the PRIMARY author, not co-sponsor. Use find_legislator first to get people_id from a name. Pass state or session_id when you want results scoped to a specific legislature and timeframe; otherwise this returns all available sessions for that legislator.",
     {
       people_id: z
         .number()
@@ -313,35 +313,41 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
         .number()
         .optional()
         .describe(
-          "Session ID to scope results. Reuse session.session_id from find_legislator."
+          "Optional session ID to scope results. Reuse session.session_id from find_legislator when you want a specific session."
         ),
       state: stateCodeSchema
         .optional()
         .describe(
-          "State abbreviation to scope results when session_id is not provided. Uses the current session for that state."
+          "Optional state abbreviation to scope results when session_id is not provided. Uses the current session for that state."
         ),
     },
     async ({ people_id, session_id, state }) => {
       try {
-        if (!session_id && !state) {
-          return errorResponse(
-            "Provide state or session_id so results stay scoped. Reuse session.session_id from legiscan_find_legislator or pass the state code."
-          );
-        }
-
         // Get all sponsored bills
         const sponsoredBills = await client.getSponsoredList(people_id);
 
         // Filter by session if specified
         let filteredBills = sponsoredBills;
+        let scope:
+          | { type: "all_sessions" }
+          | { type: "session"; session_id: number }
+          | { type: "current_session_for_state"; state: string; session_id: number } = {
+          type: "all_sessions",
+        };
         if (session_id) {
           filteredBills = sponsoredBills.filter((b) => b.session_id === session_id);
+          scope = { type: "session", session_id };
         } else if (state) {
           // Get current session for state and filter
           const currentSession = await getCurrentSession(client, state);
           filteredBills = sponsoredBills.filter(
             (b) => b.session_id === currentSession.session_id
           );
+          scope = {
+            type: "current_session_for_state",
+            state,
+            session_id: currentSession.session_id,
+          };
         }
 
         const primaryAuthored: Array<{
@@ -412,7 +418,12 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
             people_id,
             name: legislatorName || `Legislator ${people_id}`,
           },
-          total_sponsored: sponsoredBills.length,
+          scope,
+          total_sponsored: filteredBills.length,
+          total_sponsored_all_sessions:
+            filteredBills.length === sponsoredBills.length
+              ? undefined
+              : sponsoredBills.length,
           primary_count: primaryAuthored.length,
           primary_authored: primaryAuthored,
           errors: errors.length > 0 ? errors : undefined,

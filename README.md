@@ -89,38 +89,44 @@ For other MCP clients (Codex CLI, Claude Code, etc.), add the same `mcpServers.l
 ## Available Tools
 
 ### Composite Tools (High-Level Research)
-| Tool | Description |
-|------|-------------|
-| `legiscan_find_legislator` | Find a legislator's people_id by name. Supports partial matching. |
-| `legiscan_get_legislator_votes` | Get how a legislator voted on multiple bills in one call. |
+
+| Tool                            | Description                                                         |
+| ------------------------------- | ------------------------------------------------------------------- |
+| `legiscan_find_legislator`      | Find a legislator's people_id by name. Supports partial matching.   |
+| `legiscan_get_legislator_votes` | Get how a legislator voted on multiple bills in one call.           |
 | `legiscan_get_primary_authored` | Get only bills where legislator is primary author (not co-sponsor). |
 
 ### Bills
-| Tool | Description |
-|------|-------------|
-| `legiscan_get_bill` | Get detailed bill info (sponsors, history, votes, texts) |
+
+| Tool                           | Description                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------ |
+| `legiscan_get_bill`            | Get detailed bill info (sponsors, history, votes, texts)                                   |
 | `legiscan_find_bill_by_number` | Find bill by number (handles AB 858, AB858, AB-858, A.B. 858). Best for exact bill lookup. |
-| `legiscan_get_roll_call` | Get vote details with individual legislator votes |
+| `legiscan_get_roll_call`       | Get vote details with individual legislator votes                                          |
 
 ### People
-| Tool | Description |
-|------|-------------|
-| `legiscan_get_person` | Get legislator info with third-party IDs (VoteSmart, OpenSecrets, etc.) |
-| `legiscan_get_session_people` | Get all legislators active in a session |
+
+| Tool                          | Description                                                             |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| `legiscan_get_person`         | Get legislator info with third-party IDs (VoteSmart, OpenSecrets, etc.) |
+| `legiscan_get_session_people` | Get all legislators active in a session                                 |
 
 ### Search
-| Tool | Description |
-|------|-------------|
+
+| Tool              | Description                                                                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `legiscan_search` | Full-text search across legislation. Accepts bill-number variants like AB858, but use `legiscan_find_bill_by_number` for exact matches. |
 
 ### Sessions
-| Tool | Description |
-|------|-------------|
+
+| Tool                        | Description                                  |
+| --------------------------- | -------------------------------------------- |
 | `legiscan_get_session_list` | List available legislative sessions by state |
 
 ## Researcher Workflow (Terminal Agent)
 
 ### 1. Start with a scoped request
+
 Give your agent a goal, state, timeframe, and output format.
 
 Example prompt:
@@ -131,6 +137,7 @@ Return: bill number, title, latest action date, top sponsors, and whether there 
 ```
 
 ### 2. Ask the agent to follow a tool sequence
+
 For high-quality results, tell the agent to do this order:
 
 1. `legiscan_get_session_list` to identify the correct session.
@@ -142,6 +149,7 @@ For high-quality results, tell the agent to do this order:
 If you start with `legiscan_find_legislator`, keep passing the returned `session.session_id` or the same `state` into follow-up authoring workflows so results stay in the intended legislature and timeframe.
 
 ### 3. Reuse composite tools for analyst workflows
+
 These cut tool-call volume and simplify instructions to your agent:
 
 - `legiscan_find_legislator`: get `people_id` from a name query.
@@ -181,11 +189,11 @@ Output as a table suitable for CSV export.
 
 The composite tools dramatically reduce agent-to-tool round trips for common workflows:
 
-| Workflow | Manual MCP Steps | With Composites |
-|----------|------------------|-----------------|
-| Get votes for 1 legislator on 10 bills | Find legislator → search/resolve bills → inspect each bill → inspect each roll call | 1 tool call once you have `bill_ids` |
-| Filter primary authored from 150 sponsored bills | Sponsored list → fetch each bill → inspect sponsors | 1 tool call once scoped to `state` or `session_id` |
-| Find legislator by name | Session discovery → session people lookup → manual matching | 1 tool call |
+| Workflow                                         | Manual MCP Steps                                                                    | With Composites                                           |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Get votes for 1 legislator on 10 bills           | Find legislator → search/resolve bills → inspect each bill → inspect each roll call | 1 tool call once you have `bill_ids`                      |
+| Filter primary authored from 150 sponsored bills | Sponsored list → fetch each bill → inspect sponsors                                 | 1 tool call, optionally scoped by `state` or `session_id` |
+| Find legislator by name                          | Session discovery → session people lookup → manual matching                         | 1 tool call                                               |
 
 ## Research Tips
 
@@ -193,7 +201,7 @@ The composite tools dramatically reduce agent-to-tool round trips for common wor
 - Always pin state and session in your prompt to reduce ambiguous results.
 - Ask the agent to show `bill_id`, `roll_call_id`, and `people_id` in intermediate output so you can audit traceability.
 - For legislator search, provide at least a first and last name (name input must be at least 2 characters).
-- `legiscan_get_primary_authored` requires `state` or `session_id` so results stay scoped to the intended legislature and timeframe.
+- `legiscan_get_primary_authored` can return all available sessions, but passing `state` or `session_id` keeps results aligned to the intended legislature and timeframe.
 - `legiscan_get_legislator_votes` accepts up to 100 `bill_ids` per request; split larger jobs into chunks.
 - `legiscan_search` retries compact bill-number queries like `AB858` using a canonical spaced format. For exact bill resolution, prefer `legiscan_find_bill_by_number`.
 - Ask for final outputs in a table/CSV-ready shape if you plan downstream analysis.
