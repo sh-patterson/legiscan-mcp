@@ -15,11 +15,11 @@ IMPORTANT: Never ask the user for internal IDs (people_id, bill_id, session_id, 
 - Legislator name → legiscan_find_legislator (returns people_id)
 - Bill number like "AB 858" → legiscan_find_bill_by_number (returns bill_id)
 - State name → two-letter code (California → CA)
-- Session → most tools auto-resolve current session from state. Only call legiscan_get_session_list if the user asks about past sessions.
+- Session → reuse session.session_id from prior tool results when available. Bill lookups can resolve the current session from state, but author/vote workflows should keep passing the same state or session_id forward.
 
 Common chains:
 - "How did X vote on Y?" → legiscan_find_legislator → legiscan_search → legiscan_get_legislator_votes
-- "What bills did X author?" → legiscan_find_legislator → legiscan_get_primary_authored
+- "What bills did X author?" → legiscan_find_legislator → legiscan_get_primary_authored using the returned session.session_id or state
 - "What's happening with [topic]?" → legiscan_search → legiscan_get_bill for top results`;
 
 /**

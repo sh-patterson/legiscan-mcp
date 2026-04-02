@@ -109,6 +109,188 @@ describe("LegiScanClient (unit)", () => {
     expect(result.results).toHaveLength(1);
   });
 
+  it("retries bill-number searches with a canonical spaced query when needed", async () => {
+    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "OK",
+          searchresult: {
+            summary: {
+              page: "1",
+              range: "1-0",
+              relevancy: "0%",
+              count: 0,
+              page_current: 1,
+              page_total: 1,
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "OK",
+          searchresult: {
+            summary: {
+              page: "1",
+              range: "1-1",
+              relevancy: "100%",
+              count: 1,
+              page_current: 1,
+              page_total: 1,
+            },
+            "0": {
+              relevance: 99,
+              state: "CA",
+              bill_number: "AB 858",
+              bill_id: 858,
+              change_hash: "abc",
+              url: "https://example.com",
+              text_url: "https://example.com/text",
+              research_url: "https://example.com/research",
+              last_action_date: "2026-01-01",
+              last_action: "Introduced",
+              title: "Test Bill",
+            },
+          },
+        })
+      );
+
+    const client = new LegiScanClient(TEST_API_KEY);
+    const result = await client.getSearch({
+      query: "AB858",
+      state: "CA",
+      year: 1,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const firstUrl = new URL(String(fetchMock.mock.calls[0][0]));
+    const secondUrl = new URL(String(fetchMock.mock.calls[1][0]));
+
+    expect(firstUrl.searchParams.get("query")).toBe("AB858");
+    expect(secondUrl.searchParams.get("query")).toBe("AB 858");
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0]?.bill_id).toBe(858);
+  });
+
+  it("retries session-scoped bill-number searches with a canonical spaced query", async () => {
+    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "OK",
+          searchresult: {
+            summary: {
+              page: "1",
+              range: "1-0",
+              relevancy: "0%",
+              count: 0,
+              page_current: 1,
+              page_total: 1,
+            },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "OK",
+          searchresult: {
+            summary: {
+              page: "1",
+              range: "1-1",
+              relevancy: "100%",
+              count: 1,
+              page_current: 1,
+              page_total: 1,
+            },
+            "0": {
+              relevance: 99,
+              state: "CA",
+              bill_number: "AB 858",
+              bill_id: 858,
+              change_hash: "abc",
+              url: "https://example.com",
+              text_url: "https://example.com/text",
+              research_url: "https://example.com/research",
+              last_action_date: "2026-01-01",
+              last_action: "Introduced",
+              title: "Test Bill",
+            },
+          },
+        })
+      );
+
+    const client = new LegiScanClient(TEST_API_KEY);
+    const result = await client.getSearch({ query: "AB858", session_id: 2172 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const firstUrl = new URL(String(fetchMock.mock.calls[0][0]));
+    const secondUrl = new URL(String(fetchMock.mock.calls[1][0]));
+
+    expect(firstUrl.searchParams.get("query")).toBe("AB858");
+    expect(secondUrl.searchParams.get("query")).toBe("AB 858");
+    expect(firstUrl.searchParams.get("id")).toBe("2172");
+    expect(secondUrl.searchParams.get("id")).toBe("2172");
+    expect(result.results[0]?.bill_id).toBe(858);
+  });
+
+  it("retries raw bill-number searches with a canonical spaced query", async () => {
+    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "OK",
+          searchresult: {
+            summary: {
+              page: "1",
+              range: "1-0",
+              relevancy: "0%",
+              count: 0,
+              page_current: 1,
+              page_total: 1,
+            },
+            results: [],
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: "OK",
+          searchresult: {
+            summary: {
+              page: "1",
+              range: "1-1",
+              relevancy: "100%",
+              count: 1,
+              page_current: 1,
+              page_total: 1,
+            },
+            results: [
+              {
+                relevance: 99,
+                bill_id: 858,
+                change_hash: "abc",
+              },
+            ],
+          },
+        })
+      );
+
+    const client = new LegiScanClient(TEST_API_KEY);
+    const result = await client.getSearchRaw({ query: "AB858", session_id: 2172 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const firstUrl = new URL(String(fetchMock.mock.calls[0][0]));
+    const secondUrl = new URL(String(fetchMock.mock.calls[1][0]));
+
+    expect(firstUrl.searchParams.get("query")).toBe("AB858");
+    expect(secondUrl.searchParams.get("query")).toBe("AB 858");
+    expect(result.results[0]?.bill_id).toBe(858);
+  });
+
   it("filters non-bill entries from master list", async () => {
     const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValue(

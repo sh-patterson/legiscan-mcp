@@ -39,3 +39,6 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+      - name: Run workflow E2E tests
+        run: npm run test:e2e

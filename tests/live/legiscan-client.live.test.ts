@@ -674,6 +674,20 @@ describeWithApi("LegiScan API Client", () => {
           `Found ${result.summary.count} "tax" bills in session ${TEST_SESSION_ID}`
         );
       });
+
+      it("should canonicalize compact bill numbers even when session_id is provided", async () => {
+        const result = await client.getSearch({
+          session_id: 2172,
+          query: "AB858",
+        });
+
+        expect(result.results.length).toBeGreaterThan(0);
+        expect(
+          result.results.some(
+            (item) => item.bill_number.replace(/\s/g, "").toUpperCase() === "AB858"
+          )
+        ).toBe(true);
+      });
     });
 
     describe("getSearchRaw", () => {

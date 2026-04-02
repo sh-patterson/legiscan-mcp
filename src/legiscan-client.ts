@@ -41,7 +41,7 @@ import type {
   SetMonitorResponse,
   BaseResponse,
 } from "./types/legiscan.js";
-import { normalizeBillNumber } from "./tools/helpers.js";
+import { canonicalizeBillSearchQuery, normalizeBillNumber } from "./tools/helpers.js";
 
 const API_BASE_URL = "https://api.legiscan.com/";
 const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
@@ -340,6 +340,71 @@ export class LegiScanClient {
     summary: SearchSummary;
     results: SearchResultItem[];
   }> {
+    const primaryResponse = await this.request<SearchResponse>(
+      "getSearch",
+      this.buildSearchParams(params)
+    );
+    const primaryResult = this.parseSearchResponse(primaryResponse);
+
+    const canonicalQuery = canonicalizeBillSearchQuery(params.query);
+    const shouldRetry =
+      primaryResult.results.length === 0 &&
+      canonicalQuery !== null &&
+      canonicalQuery !== params.query;
+
+    if (!shouldRetry) {
+      return primaryResult;
+    }
+
+    const fallbackResponse = await this.request<SearchResponse>(
+      "getSearch",
+      this.buildSearchParams({ ...params, query: canonicalQuery })
+    );
+
+    return this.parseSearchResponse(fallbackResponse);
+  }
+
+  /**
+   * Full-text search (2000 results per page)
+   * @param params Search parameters
+   */
+  async getSearchRaw(params: SearchParams): Promise<{
+    summary: SearchSummary;
+    results: SearchRawResultItem[];
+  }> {
+    const primaryResponse = await this.request<SearchRawResponse>(
+      "getSearchRaw",
+      this.buildSearchParams(params)
+    );
+    const primaryResult = {
+      summary: primaryResponse.searchresult.summary,
+      results: primaryResponse.searchresult.results,
+    };
+
+    const canonicalQuery = canonicalizeBillSearchQuery(params.query);
+    const shouldRetry =
+      primaryResult.results.length === 0 &&
+      canonicalQuery !== null &&
+      canonicalQuery !== params.query;
+
+    if (!shouldRetry) {
+      return primaryResult;
+    }
+
+    const fallbackResponse = await this.request<SearchRawResponse>(
+      "getSearchRaw",
+      this.buildSearchParams({ ...params, query: canonicalQuery })
+    );
+
+    return {
+      summary: fallbackResponse.searchresult.summary,
+      results: fallbackResponse.searchresult.results,
+    };
+  }
+
+  private buildSearchParams(
+    params: SearchParams
+  ): Record<string, string | number | undefined> {
     const apiParams: Record<string, string | number | undefined> = {
       query: params.query,
       page: params.page,
@@ -352,9 +417,13 @@ export class LegiScanClient {
       apiParams.year = params.year;
     }
 
-    const response = await this.request<SearchResponse>("getSearch", apiParams);
+    return apiParams;
+  }
 
-    // Extract results from numbered keys (filter out null/non-object entries)
+  private parseSearchResponse(response: SearchResponse): {
+    summary: SearchSummary;
+    results: SearchResultItem[];
+  } {
     const results: SearchResultItem[] = [];
     for (const [key, value] of Object.entries(response.searchresult)) {
       if (
@@ -370,34 +439,6 @@ export class LegiScanClient {
     return {
       summary: response.searchresult.summary as SearchSummary,
       results,
-    };
-  }
-
-  /**
-   * Full-text search (2000 results per page)
-   * @param params Search parameters
-   */
-  async getSearchRaw(params: SearchParams): Promise<{
-    summary: SearchSummary;
-    results: SearchRawResultItem[];
-  }> {
-    const apiParams: Record<string, string | number | undefined> = {
-      query: params.query,
-      page: params.page,
-    };
-
-    if (params.session_id) {
-      apiParams.id = params.session_id;
-    } else {
-      apiParams.state = params.state || "ALL";
-      apiParams.year = params.year;
-    }
-
-    const response = await this.request<SearchRawResponse>("getSearchRaw", apiParams);
-
-    return {
-      summary: response.searchresult.summary,
-      results: response.searchresult.results,
     };
   }
 

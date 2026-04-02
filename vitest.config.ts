@@ -8,7 +8,7 @@ export default defineConfig({
       concurrent: false,
     },
     include: ["tests/unit/**/*.test.ts"],
-    exclude: ["node_modules/**", "dist/**", "tests/live/**", "tests/e2e-real-world.test.ts"],
+    exclude: ["node_modules/**", "dist/**", "tests/live/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

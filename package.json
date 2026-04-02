@@ -22,8 +22,10 @@
     "test": "npm run test:unit",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:watch": "vitest --config vitest.config.ts",
+    "test:e2e": "vitest run --config vitest.live.config.ts tests/e2e-real-world.test.ts",
     "test:live": "vitest run --config vitest.live.config.ts",
     "test:all": "npm run test:unit && npm run test:live",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
@@ -59,6 +61,7 @@
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@types/node": "^20.19.27",
+    "@vitest/coverage-v8": "^4.1.2",
     "eslint": "^9.17.0",
     "prettier": "^3.4.2",
     "typescript": "^5.3.2",
