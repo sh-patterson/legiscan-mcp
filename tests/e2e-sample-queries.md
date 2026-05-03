@@ -71,24 +71,7 @@ Use these to verify the MCP server functions correctly.
 
 ---
 
-## 5. Get Bill Text (Stage 3 text fetch)
-
-**Tool:** `legiscan_get_bill_text`
-
-```json
-{
-  "doc_id": 2345678,
-  "decode": true
-}
-```
-
-*Note: Replace with actual doc_id from bill.texts[]*
-
-**Expected:** Returns `doc` (base64 or decoded HTML), `mime`, `doc_id`
-
----
-
-## 6. Get Roll Call Votes (Stage 4 salience)
+## 5. Get Roll Call Votes (Stage 4 salience)
 
 **Tool:** `legiscan_get_roll_call`
 
@@ -106,7 +89,7 @@ Use these to verify the MCP server functions correctly.
 
 ---
 
-## 7. Get Legislator Info (Party break detection)
+## 6. Get Legislator Info (Party break detection)
 
 **Tool:** `legiscan_get_person`
 
@@ -122,7 +105,7 @@ Use these to verify the MCP server functions correctly.
 
 ---
 
-## 8. Get All Session Legislators
+## 7. Get All Session Legislators
 
 **Tool:** `legiscan_get_session_people`
 
@@ -138,17 +121,18 @@ Use these to verify the MCP server functions correctly.
 
 ---
 
-## 9. Get Legislator's Sponsored Bills
+## 8. Get Primary-Authored Bills
 
-**Tool:** `legiscan_get_sponsored_list`
+**Tool:** `legiscan_get_primary_authored`
 
 ```json
 {
-  "people_id": 12345
+  "people_id": 12345,
+  "state": "CA"
 }
 ```
 
-**Expected:** Returns list of bills sponsored by this legislator across sessions
+**Expected:** Returns only bills where this legislator is the primary author
 
 ---
 
@@ -174,18 +158,13 @@ legiscan_get_bill { "bill_id": <from_step_2> }
 ```
 *Extract `texts[0].doc_id`, `votes[0].roll_call_id`, `sponsors[0].people_id`*
 
-### Step 4: Fetch bill text for summarization
-```
-legiscan_get_bill_text { "doc_id": <from_step_3>, "decode": true }
-```
-
-### Step 5: Fetch roll call for vote analysis
+### Step 4: Fetch roll call for vote analysis
 ```
 legiscan_get_roll_call { "roll_call_id": <from_step_3> }
 ```
 *Analyze `yea`/`nay` margin, individual votes by party*
 
-### Step 6: Fetch legislator party info
+### Step 5: Fetch legislator party info
 ```
 legiscan_get_person { "people_id": <from_step_3_or_5> }
 ```

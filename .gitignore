@@ -4,8 +4,36 @@ node_modules/
 # Build output
 dist/
 
-# Environment variables (contains API key)
+# Environment variables (contains API keys/secrets)
 .env
+.env.*
+!.env.example
+
+# Agent/private workspace state
+.claude/
+.codex/
+.agents/
+AGENTS.md
+AGENTS.local.md
+AGENTS.private.md
+CLAUDE.md
+CLAUDE.local.md
+CLAUDE.private.md
+
+# Local improvement loops, plans, and experiment logs
+autoresearch-results.tsv
+*autoresearch-results*.tsv
+scripts/crap-report.mjs
+scripts/harness-check.mjs
+scripts/*crap*.mjs
+scripts/*harness*.mjs
+*.local-plan.md
+*.private-plan.md
+docs/*goal*.md
+docs/*plan*.md
+docs/*roadmap*.md
+docs/*harness*.md
+docs/*autoresearch*.md
 
 # IDE
 .idea/
@@ -26,3 +54,5 @@ npm-debug.log*
 
 # Private project notes
 tests/FRICTION_ANALYSIS.md
+tests/*FRICTION*.md
+tests/*ANALYSIS*.md
