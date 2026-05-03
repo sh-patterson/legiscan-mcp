@@ -34,22 +34,79 @@ async function getCurrentSession(
 }
 
 /**
- * Process items in batches to avoid API rate limits
+ * Process items in batches while deduplicating repeated lookups within a request.
+ * The returned array preserves the original item order.
  */
-async function processBatched<T, R>(
+async function processBatchedCached<T, K, R>(
   items: T[],
+  getKey: (item: T) => K,
   processor: (item: T) => Promise<R>,
   batchSize: number = 10
 ): Promise<PromiseSettledResult<R>[]> {
-  const results: PromiseSettledResult<R>[] = [];
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  const cachedResults = new Map<K, PromiseSettledResult<R>>();
+  const uniqueItems: Array<{ key: K; item: T }> = [];
 
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-    const batchResults = await Promise.allSettled(batch.map(processor));
-    results.push(...batchResults);
+  for (const item of items) {
+    const key = getKey(item);
+    if (!cachedResults.has(key)) {
+      cachedResults.set(key, {
+        status: "rejected",
+        reason: new Error("Uninitialized cache"),
+      });
+      uniqueItems.push({ key, item });
+    }
+  }
+
+  for (let i = 0; i < uniqueItems.length; i += batchSize) {
+    const batch = uniqueItems.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(async ({ key, item }) => {
+        try {
+          return {
+            key,
+            result: {
+              status: "fulfilled" as const,
+              value: await processor(item),
+            },
+          };
+        } catch (error) {
+          return {
+            key,
+            result: {
+              status: "rejected" as const,
+              reason: error,
+            },
+          };
+        }
+      })
+    );
+
+    for (const { key, result } of batchResults) {
+      cachedResults.set(key, result);
+    }
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    results[i] = cachedResults.get(getKey(items[i]))!;
   }
 
   return results;
+}
+
+function createCachedFetcher<K, R>(fetcher: (key: K) => Promise<R>) {
+  const cache = new Map<K, Promise<R>>();
+
+  return (key: K) => {
+    const cached = cache.get(key);
+    if (cached) {
+      return cached;
+    }
+
+    const pending = fetcher(key);
+    cache.set(key, pending);
+    return pending;
+  };
 }
 
 /**
@@ -136,8 +193,19 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
         const errors: string[] = [];
         let legislatorName = "";
 
+        const getBillCached = createCachedFetcher((billId: number) =>
+          client.getBill(billId)
+        );
+        const getRollCallCached = createCachedFetcher((rollCallId: number) =>
+          client.getRollCall(rollCallId)
+        );
+
         // Fetch all bills in batches to avoid rate limits
-        const billResults = await processBatched(bill_ids, (id) => client.getBill(id));
+        const billResults = await processBatchedCached(
+          bill_ids,
+          (billId) => billId,
+          (billId) => getBillCached(billId)
+        );
 
         for (let i = 0; i < billResults.length; i++) {
           const result = billResults[i];
@@ -162,8 +230,10 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
           }
 
           // Fetch all roll calls for this bill in batches
-          const rollCallResults = await processBatched(voteRefs, (v) =>
-            client.getRollCall(v.roll_call_id)
+          const rollCallResults = await processBatchedCached(
+            voteRefs,
+            (voteRef) => voteRef.roll_call_id,
+            (voteRef) => getRollCallCached(voteRef.roll_call_id)
           );
 
           for (let j = 0; j < rollCallResults.length; j++) {
@@ -234,16 +304,21 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
   // ============================================
   server.tool(
     "legiscan_get_primary_authored",
-    "Get only bills where a legislator is the PRIMARY author, not co-sponsor. Use find_legislator first to get people_id from a name. Filters out co-sponsored bills automatically.",
+    "Get only bills where a legislator is the PRIMARY author, not co-sponsor. Use find_legislator first to get people_id from a name. Pass state or session_id when you want results scoped to a specific legislature and timeframe; otherwise this returns all available sessions for that legislator.",
     {
       people_id: z
         .number()
         .describe("Legislator ID (use find_legislator to resolve from name)"),
-      session_id: z.number().optional().describe("Optional session_id to filter results"),
+      session_id: z
+        .number()
+        .optional()
+        .describe(
+          "Optional session ID to scope results. Reuse session.session_id from find_legislator when you want a specific session."
+        ),
       state: stateCodeSchema
         .optional()
         .describe(
-          "Optional state abbreviation - if provided without session_id, uses current session"
+          "Optional state abbreviation to scope results when session_id is not provided. Uses the current session for that state."
         ),
     },
     async ({ people_id, session_id, state }) => {
@@ -253,14 +328,26 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
 
         // Filter by session if specified
         let filteredBills = sponsoredBills;
+        let scope:
+          | { type: "all_sessions" }
+          | { type: "session"; session_id: number }
+          | { type: "current_session_for_state"; state: string; session_id: number } = {
+          type: "all_sessions",
+        };
         if (session_id) {
           filteredBills = sponsoredBills.filter((b) => b.session_id === session_id);
+          scope = { type: "session", session_id };
         } else if (state) {
           // Get current session for state and filter
           const currentSession = await getCurrentSession(client, state);
           filteredBills = sponsoredBills.filter(
             (b) => b.session_id === currentSession.session_id
           );
+          scope = {
+            type: "current_session_for_state",
+            state,
+            session_id: currentSession.session_id,
+          };
         }
 
         const primaryAuthored: Array<{
@@ -276,10 +363,15 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
         }> = [];
         const errors: string[] = [];
         let legislatorName = "";
+        const getBillCached = createCachedFetcher((billId: number) =>
+          client.getBill(billId)
+        );
 
         // Fetch all bill details in batches to avoid rate limits
-        const billResults = await processBatched(filteredBills, (b) =>
-          client.getBill(b.bill_id)
+        const billResults = await processBatchedCached(
+          filteredBills,
+          (billInfo) => billInfo.bill_id,
+          (billInfo) => getBillCached(billInfo.bill_id)
         );
 
         for (let i = 0; i < billResults.length; i++) {
@@ -326,7 +418,12 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
             people_id,
             name: legislatorName || `Legislator ${people_id}`,
           },
-          total_sponsored: sponsoredBills.length,
+          scope,
+          total_sponsored: filteredBills.length,
+          total_sponsored_all_sessions:
+            filteredBills.length === sponsoredBills.length
+              ? undefined
+              : sponsoredBills.length,
           primary_count: primaryAuthored.length,
           primary_authored: primaryAuthored,
           errors: errors.length > 0 ? errors : undefined,

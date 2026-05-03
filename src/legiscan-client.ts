@@ -41,7 +41,7 @@ import type {
   SetMonitorResponse,
   BaseResponse,
 } from "./types/legiscan.js";
-import { normalizeBillNumber } from "./tools/helpers.js";
+import { canonicalizeBillSearchQuery, normalizeBillNumber } from "./tools/helpers.js";
 
 const API_BASE_URL = "https://api.legiscan.com/";
 const REQUEST_TIMEOUT_MS = 30000; // 30 seconds
@@ -340,6 +340,84 @@ export class LegiScanClient {
     summary: SearchSummary;
     results: SearchResultItem[];
   }> {
+    const primaryResponse = await this.request<SearchResponse>(
+      "getSearch",
+      this.buildSearchParams(params)
+    );
+    const primaryResult = this.parseSearchResponse(primaryResponse);
+
+    const canonicalQuery = this.getCanonicalBillSearchRetryQuery(
+      params.query,
+      primaryResult.results,
+      (item) => item.bill_number
+    );
+
+    if (!canonicalQuery) {
+      return primaryResult;
+    }
+
+    const fallbackResponse = await this.request<SearchResponse>(
+      "getSearch",
+      this.buildSearchParams({ ...params, query: canonicalQuery })
+    );
+
+    const fallbackResult = this.parseSearchResponse(fallbackResponse);
+
+    return fallbackResult.results.length > 0 ? fallbackResult : primaryResult;
+  }
+
+  /**
+   * Full-text search (2000 results per page)
+   * @param params Search parameters
+   */
+  async getSearchRaw(params: SearchParams): Promise<{
+    summary: SearchSummary;
+    results: SearchRawResultItem[];
+  }> {
+    const searchParams = this.buildSearchParams(params);
+    const initialCanonicalQuery = canonicalizeBillSearchQuery(params.query);
+    const primaryResponse = await this.request<SearchRawResponse>(
+      "getSearchRaw",
+      searchParams
+    );
+    const primaryResult = {
+      summary: primaryResponse.searchresult.summary,
+      results: primaryResponse.searchresult.results,
+    };
+
+    if (initialCanonicalQuery === null || initialCanonicalQuery === params.query) {
+      return primaryResult;
+    }
+
+    let canonicalQuery = this.getCanonicalBillSearchRetryQuery(params.query, []);
+
+    if (primaryResult.results.length > 0) {
+      canonicalQuery = await this.getCanonicalBillSearchRetryQueryFromParsedSearch(
+        params,
+        searchParams
+      );
+    }
+
+    if (!canonicalQuery) {
+      return primaryResult;
+    }
+
+    const fallbackResponse = await this.request<SearchRawResponse>(
+      "getSearchRaw",
+      this.buildSearchParams({ ...params, query: canonicalQuery })
+    );
+
+    const fallbackResult = {
+      summary: fallbackResponse.searchresult.summary,
+      results: fallbackResponse.searchresult.results,
+    };
+
+    return fallbackResult.results.length > 0 ? fallbackResult : primaryResult;
+  }
+
+  private buildSearchParams(
+    params: SearchParams
+  ): Record<string, string | number | undefined> {
     const apiParams: Record<string, string | number | undefined> = {
       query: params.query,
       page: params.page,
@@ -352,9 +430,13 @@ export class LegiScanClient {
       apiParams.year = params.year;
     }
 
-    const response = await this.request<SearchResponse>("getSearch", apiParams);
+    return apiParams;
+  }
 
-    // Extract results from numbered keys (filter out null/non-object entries)
+  private parseSearchResponse(response: SearchResponse): {
+    summary: SearchSummary;
+    results: SearchResultItem[];
+  } {
     const results: SearchResultItem[] = [];
     for (const [key, value] of Object.entries(response.searchresult)) {
       if (
@@ -373,32 +455,55 @@ export class LegiScanClient {
     };
   }
 
-  /**
-   * Full-text search (2000 results per page)
-   * @param params Search parameters
-   */
-  async getSearchRaw(params: SearchParams): Promise<{
-    summary: SearchSummary;
-    results: SearchRawResultItem[];
-  }> {
-    const apiParams: Record<string, string | number | undefined> = {
-      query: params.query,
-      page: params.page,
-    };
+  private async getCanonicalBillSearchRetryQueryFromParsedSearch(
+    params: SearchParams,
+    searchParams: Record<string, string | number | undefined>
+  ): Promise<string | null> {
+    try {
+      const verificationResponse = await this.request<SearchResponse>(
+        "getSearch",
+        searchParams
+      );
+      const verificationResult = this.parseSearchResponse(verificationResponse);
 
-    if (params.session_id) {
-      apiParams.id = params.session_id;
-    } else {
-      apiParams.state = params.state || "ALL";
-      apiParams.year = params.year;
+      return this.getCanonicalBillSearchRetryQuery(
+        params.query,
+        verificationResult.results,
+        (item) => item.bill_number
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  private getCanonicalBillSearchRetryQuery<T>(
+    query: string,
+    results: T[],
+    getBillNumber?: (item: T) => string | undefined
+  ): string | null {
+    const canonicalQuery = canonicalizeBillSearchQuery(query);
+
+    if (canonicalQuery === null || canonicalQuery === query) {
+      return null;
     }
 
-    const response = await this.request<SearchRawResponse>("getSearchRaw", apiParams);
+    if (results.length === 0) {
+      return canonicalQuery;
+    }
 
-    return {
-      summary: response.searchresult.summary,
-      results: response.searchresult.results,
-    };
+    if (!getBillNumber) {
+      return canonicalQuery;
+    }
+
+    const normalizedQuery = normalizeBillNumber(query);
+    const hasExactMatch = results.some((item) => {
+      const billNumber = getBillNumber(item);
+      return (
+        billNumber !== undefined && normalizeBillNumber(billNumber) === normalizedQuery
+      );
+    });
+
+    return hasExactMatch ? null : canonicalQuery;
   }
 
   // ============================================
