@@ -62,20 +62,28 @@ export function registerBillTools(server: McpServer, client: LegiScanClient) {
     },
     async ({ state, session_id, bill_number }) => {
       try {
-        if (!session_id && !state) {
+        if (session_id) {
+          const result = await client.findBillByNumberInSession(session_id, bill_number);
+          if (result) {
+            return jsonResponse(result);
+          }
+          return jsonResponse({
+            found: false,
+            message: `Bill '${bill_number}' not found in session ${session_id}`,
+          });
+        }
+
+        if (!state) {
           return errorResponse("Either session_id or state is required");
         }
 
-        const result = session_id
-          ? await client.findBillByNumberInSession(session_id, bill_number)
-          : await client.findBillByNumber(state!, bill_number);
-
+        const result = await client.findBillByNumber(state, bill_number);
         if (result) {
           return jsonResponse(result);
         }
         return jsonResponse({
           found: false,
-          message: `Bill '${bill_number}' not found in ${session_id ? `session ${session_id}` : `${state} current session`}`,
+          message: `Bill '${bill_number}' not found in ${state} current session`,
         });
       } catch (error) {
         return errorResponse(error);

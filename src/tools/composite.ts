@@ -11,6 +11,13 @@ import { jsonResponse, errorResponse, stateCodeSchema } from "./helpers.js";
 // Helper Functions
 // ============================================
 
+const SPONSOR_TYPE_NAMES: Record<number, string> = {
+  0: "Sponsor",
+  1: "Primary Sponsor",
+  2: "Co-Sponsor",
+  3: "Joint Sponsor",
+};
+
 /**
  * Get current (most recent active) session for a state
  */
@@ -43,17 +50,14 @@ async function processBatchedCached<T, K, R>(
   processor: (item: T) => Promise<R>,
   batchSize: number = 10
 ): Promise<PromiseSettledResult<R>[]> {
-  const results = new Array<PromiseSettledResult<R>>(items.length);
-  const cachedResults = new Map<K, PromiseSettledResult<R>>();
+  const resultsByKey = new Map<K, PromiseSettledResult<R>>();
+  const seenKeys = new Set<K>();
   const uniqueItems: Array<{ key: K; item: T }> = [];
 
   for (const item of items) {
     const key = getKey(item);
-    if (!cachedResults.has(key)) {
-      cachedResults.set(key, {
-        status: "rejected",
-        reason: new Error("Uninitialized cache"),
-      });
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
       uniqueItems.push({ key, item });
     }
   }
@@ -83,15 +87,17 @@ async function processBatchedCached<T, K, R>(
     );
 
     for (const { key, result } of batchResults) {
-      cachedResults.set(key, result);
+      resultsByKey.set(key, result);
     }
   }
 
-  for (let i = 0; i < items.length; i++) {
-    results[i] = cachedResults.get(getKey(items[i]))!;
-  }
-
-  return results;
+  return items.map((item) => {
+    const result = resultsByKey.get(getKey(item));
+    if (!result) {
+      throw new Error("Missing cached result");
+    }
+    return result;
+  });
 }
 
 function createCachedFetcher<K, R>(fetcher: (key: K) => Promise<R>) {
@@ -218,15 +224,9 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
 
           const bill = result.value;
 
-          // Filter votes by chamber if specified
           let voteRefs = bill.votes || [];
           if (chamber) {
-            const chamberMap: Record<string, string> = {
-              H: "H",
-              S: "S",
-              A: "A",
-            };
-            voteRefs = voteRefs.filter((v) => v.chamber === chamberMap[chamber]);
+            voteRefs = voteRefs.filter((v) => v.chamber === chamber);
           }
 
           // Fetch all roll calls for this bill in batches
@@ -391,14 +391,6 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
           if (sponsor && isPrimaryAuthor(sponsor)) {
             if (!legislatorName) legislatorName = sponsor.name;
 
-            // Map sponsor_type_id to readable string
-            const sponsorTypeMap: Record<number, string> = {
-              0: "Sponsor",
-              1: "Primary Sponsor",
-              2: "Co-Sponsor",
-              3: "Joint Sponsor",
-            };
-
             primaryAuthored.push({
               bill_id: bill.bill_id,
               bill_number: bill.bill_number,
@@ -408,7 +400,7 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
               status: bill.status.toString(),
               status_date: bill.status_date,
               sponsor_order: sponsor.sponsor_order,
-              sponsor_type: sponsorTypeMap[sponsor.sponsor_type_id] || "Unknown",
+              sponsor_type: SPONSOR_TYPE_NAMES[sponsor.sponsor_type_id] || "Unknown",
             });
           }
         }

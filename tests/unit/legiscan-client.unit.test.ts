@@ -16,9 +16,11 @@ function jsonResponse(data: unknown, init: Partial<Response> = {}): Response {
 
 describe("LegiScanClient (unit)", () => {
   const originalFetch = global.fetch;
+  let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    global.fetch = vi.fn() as unknown as typeof fetch;
+    fetchMock = vi.fn();
+    global.fetch = fetchMock as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -31,7 +33,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("uses session_id as id param for session-scoped search", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValue(
       jsonResponse({
         status: "OK",
@@ -61,7 +62,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("uses state/year params for standard search", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValue(
       jsonResponse({
         status: "OK",
@@ -110,7 +110,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("retries bill-number searches with a canonical spaced query when needed", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse({
@@ -175,7 +174,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("retries session-scoped bill-number searches with a canonical spaced query", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse({
@@ -237,7 +235,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("retries bill-number searches when the initial results are only fuzzy matches", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse({
@@ -309,7 +306,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("preserves special-session markers in bill-number retry queries", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse({
@@ -369,7 +365,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("retries raw bill-number searches with a canonical spaced query", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse({
@@ -424,7 +419,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("does not verify non-bill raw searches that already have results", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         status: "OK",
@@ -457,7 +451,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("retries raw bill-number searches even when the initial results are non-empty", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse({
@@ -547,7 +540,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("preserves successful raw results when parsed verification fails", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse({
@@ -585,7 +577,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("preserves primary raw-search matches for hyphenated special-session bill numbers", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse({
@@ -650,7 +641,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("filters non-bill entries from master list", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValue(
       jsonResponse({
         status: "OK",
@@ -683,7 +673,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("throws LegiScanError for HTTP failures", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValue(
       jsonResponse({}, { ok: false, status: 500, statusText: "Internal Server Error" })
     );
@@ -696,7 +685,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("throws LegiScanError for API-level errors", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValue(
       jsonResponse({
         status: "ERROR",
@@ -712,7 +700,6 @@ describe("LegiScanClient (unit)", () => {
   });
 
   it("wraps network failures as LegiScanError", async () => {
-    const fetchMock = global.fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock.mockRejectedValue(new Error("socket hang up"));
 
     const client = new LegiScanClient(TEST_API_KEY);

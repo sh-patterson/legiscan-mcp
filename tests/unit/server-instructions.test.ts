@@ -1,56 +1,6 @@
-// Tests for server instructions and de-jargoned tool descriptions
-// Verifies what the LLM actually sees when it connects to this server
-
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
-import { createServer } from "../../src/server.js";
-
-/**
- * Create a linked pair of in-memory transports for testing.
- * Messages sent on one side are received on the other.
- */
-function createLinkedTransportPair(): [Transport, Transport] {
-  let onMessageA: Transport["onmessage"];
-  let onMessageB: Transport["onmessage"];
-
-  const transportA: Transport = {
-    async start() {},
-    async send(message: JSONRPCMessage) {
-      // A sends → B receives
-      onMessageB?.(message);
-    },
-    async close() {
-      transportA.onclose?.();
-    },
-    set onmessage(handler) {
-      onMessageA = handler;
-    },
-    get onmessage() {
-      return onMessageA;
-    },
-  };
-
-  const transportB: Transport = {
-    async start() {},
-    async send(message: JSONRPCMessage) {
-      // B sends → A receives
-      onMessageA?.(message);
-    },
-    async close() {
-      transportB.onclose?.();
-    },
-    set onmessage(handler) {
-      onMessageB = handler;
-    },
-    get onmessage() {
-      return onMessageB;
-    },
-  };
-
-  return [transportA, transportB];
-}
+import { createConnectedClient } from "./mcp-test-helpers.js";
 
 describe("server instructions and tool descriptions", () => {
   let client: Client;
@@ -62,13 +12,7 @@ describe("server instructions and tool descriptions", () => {
   }>;
 
   beforeAll(async () => {
-    const server = createServer("fake-api-key-for-testing");
-    client = new Client({ name: "test-client", version: "1.0.0" });
-
-    const [clientTransport, serverTransport] = createLinkedTransportPair();
-    await server.connect(serverTransport);
-    await client.connect(clientTransport);
-
+    client = await createConnectedClient();
     instructions = client.getInstructions();
     const result = await client.listTools();
     tools = result.tools;

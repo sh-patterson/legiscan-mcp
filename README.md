@@ -256,26 +256,6 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-## Docker
-
-Build the container image locally:
-
-```bash
-docker build -t legiscan-mcp .
-```
-
-Run it with your API key provided at runtime:
-
-```bash
-docker run --rm -i \
-  -e LEGISCAN_API_KEY=your-api-key-here \
-  legiscan-mcp
-```
-
-## Releases
-
-Glama checks expect a GitHub release. Create and publish a tag such as `v1.0.0` after pushing changes.
-
 ## License
 
 MIT - see [LICENSE](LICENSE) for details.
