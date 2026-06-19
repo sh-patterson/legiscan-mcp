@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/sh-patterson-legiscan-mcp-badge.png)](https://mseep.ai/app/sh-patterson-legiscan-mcp)
+
 # LegiScan MCP Server
 
 [![CI](https://github.com/sh-patterson/legiscan-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/sh-patterson/legiscan-mcp/actions/workflows/ci.yml)
