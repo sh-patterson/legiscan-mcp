@@ -4,7 +4,12 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { LegiScanClient } from "../legiscan-client.js";
-import { SponsorType, type Person, type Sponsor, type Session } from "../types/legiscan.js";
+import {
+  SponsorType,
+  type Person,
+  type Sponsor,
+  type Session,
+} from "../types/legiscan.js";
 import { jsonResponse, errorResponse, stateCodeSchema } from "./helpers.js";
 
 // ============================================

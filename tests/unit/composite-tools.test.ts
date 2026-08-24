@@ -202,15 +202,16 @@ describe("composite MCP tools", () => {
 
     const getRollCallSpy = vi
       .spyOn(LegiScanClient.prototype, "getRollCall")
-      .mockImplementation(async (rollCallId) =>
-        ({
-          roll_call_id: rollCallId,
-          date: "2026-01-01",
-          desc: "Assembly Floor Vote",
-          chamber: "A",
-          passed: 1,
-          votes: [{ people_id: 21719, vote_text: "Yea", vote_id: 1 }],
-        }) as never
+      .mockImplementation(
+        async (rollCallId) =>
+          ({
+            roll_call_id: rollCallId,
+            date: "2026-01-01",
+            desc: "Assembly Floor Vote",
+            chamber: "A",
+            passed: 1,
+            votes: [{ people_id: 21719, vote_text: "Yea", vote_id: 1 }],
+          }) as never
       );
 
     client = await createConnectedClient();
@@ -244,15 +245,16 @@ describe("composite MCP tools", () => {
 
     const getRollCallSpy = vi
       .spyOn(LegiScanClient.prototype, "getRollCall")
-      .mockImplementation(async (rollCallId) =>
-        ({
-          roll_call_id: rollCallId,
-          date: "2026-01-01",
-          desc: "Assembly Floor Vote",
-          chamber: "A",
-          passed: 1,
-          votes: [{ people_id: 21719, vote_text: "Yea", vote_id: 1 }],
-        }) as never
+      .mockImplementation(
+        async (rollCallId) =>
+          ({
+            roll_call_id: rollCallId,
+            date: "2026-01-01",
+            desc: "Assembly Floor Vote",
+            chamber: "A",
+            passed: 1,
+            votes: [{ people_id: 21719, vote_text: "Yea", vote_id: 1 }],
+          }) as never
       );
 
     client = await createConnectedClient();
@@ -281,9 +283,8 @@ describe("composite MCP tools", () => {
       sponsoredBills as never
     );
 
-    const getBillSpy = vi
-      .spyOn(LegiScanClient.prototype, "getBill")
-      .mockImplementation(async (billId) =>
+    const getBillSpy = vi.spyOn(LegiScanClient.prototype, "getBill").mockImplementation(
+      async (billId) =>
         ({
           bill_id: billId,
           bill_number: `AB ${billId}`,
@@ -301,7 +302,7 @@ describe("composite MCP tools", () => {
             },
           ],
         }) as never
-      );
+    );
 
     client = await createConnectedClient();
     const result = await client.callTool({
