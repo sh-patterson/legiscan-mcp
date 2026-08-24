@@ -23,7 +23,7 @@ jobs:
         run: npm ci
 
       - name: Security audit (prod deps)
-        run: npm audit --omit=dev --audit-level=high || true
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Lint
         run: npm run lint
