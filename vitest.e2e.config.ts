@@ -7,7 +7,7 @@ export default defineConfig({
     sequence: {
       concurrent: false,
     },
-    include: ["tests/e2e-real-world.test.ts"],
+    include: ["tests/e2e-real-world.test.ts", "tests/e2e-offline.test.ts"],
     exclude: ["node_modules/**", "dist/**"],
   },
 });

@@ -214,7 +214,7 @@ The composite tools dramatically reduce agent-to-tool round trips for common wor
 npm run build        # Compile TypeScript
 npm run typecheck    # Type-check src + tests
 npm test             # Run deterministic unit tests (no API key)
-npm run test:e2e     # Run real-world workflow tests (skips cleanly without API key)
+npm run test:e2e     # Run offline MCP/HTTP workflows; also run live scenarios with an API key
 npm run test:live    # Run live API integration tests (requires API key)
 npm run test:coverage # Run unit tests with coverage
 npm run lint         # Check for lint errors
@@ -224,7 +224,7 @@ npm run format       # Format code with Prettier
 ## Testing Modes
 
 - `npm test` / `npm run test:unit`: Fast deterministic tests with mocked network calls.
-- `npm run test:e2e`: Research workflow tests based on real legislative analysis tasks. Skips if `LEGISCAN_API_KEY` is unavailable.
+- `npm run test:e2e`: Runs provider-free MCP-to-HTTP workflow tests. Its real LegiScan scenarios run only when `LEGISCAN_API_KEY` is available.
 - `npm run test:live`: Real LegiScan API integration tests. Requires `LEGISCAN_API_KEY`.
 
 ## API Limits
