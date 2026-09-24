@@ -46,63 +46,32 @@ async function getCurrentSession(
 }
 
 /**
- * Process items in batches while deduplicating repeated lookups within a request.
- * The returned array preserves the original item order.
+ * Process each distinct item once in batches, preserving first-seen order.
  */
-async function processBatchedCached<T, K, R>(
+async function processUniqueBatched<T, K, R>(
   items: T[],
   getKey: (item: T) => K,
   processor: (item: T) => Promise<R>,
   batchSize: number = 10
-): Promise<PromiseSettledResult<R>[]> {
-  const resultsByKey = new Map<K, PromiseSettledResult<R>>();
+): Promise<Array<{ item: T; result: PromiseSettledResult<R> }>> {
   const seenKeys = new Set<K>();
-  const uniqueItems: Array<{ key: K; item: T }> = [];
-
-  for (const item of items) {
+  const uniqueItems = items.filter((item) => {
     const key = getKey(item);
-    if (!seenKeys.has(key)) {
-      seenKeys.add(key);
-      uniqueItems.push({ key, item });
-    }
-  }
+    if (seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  });
+  const results: Array<{ item: T; result: PromiseSettledResult<R> }> = [];
 
   for (let i = 0; i < uniqueItems.length; i += batchSize) {
     const batch = uniqueItems.slice(i, i + batchSize);
-    const batchResults = await Promise.all(
-      batch.map(async ({ key, item }) => {
-        try {
-          return {
-            key,
-            result: {
-              status: "fulfilled" as const,
-              value: await processor(item),
-            },
-          };
-        } catch (error) {
-          return {
-            key,
-            result: {
-              status: "rejected" as const,
-              reason: error,
-            },
-          };
-        }
-      })
+    const batchResults = await Promise.allSettled(
+      batch.map((item) => Promise.resolve().then(() => processor(item)))
     );
-
-    for (const { key, result } of batchResults) {
-      resultsByKey.set(key, result);
-    }
+    results.push(...batch.map((item, index) => ({ item, result: batchResults[index] })));
   }
 
-  return items.map((item) => {
-    const result = resultsByKey.get(getKey(item));
-    if (!result) {
-      throw new Error("Missing cached result");
-    }
-    return result;
-  });
+  return results;
 }
 
 function createCachedFetcher<K, R>(fetcher: (key: K) => Promise<R>) {
@@ -168,7 +137,7 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
   // ============================================
   server.tool(
     "legiscan_get_legislator_votes",
-    "Get how a legislator voted on specific bills. Use find_legislator first to get people_id from a name. Returns vote positions (Yea/Nay/NV/Absent) for each bill with roll call details. Duplicate bill_ids are deduplicated. Each bill fetches at most max_roll_calls_per_bill roll calls (default 5, most recent first) to limit API quota usage.",
+    "Get how a legislator voted on specific bills. Use find_legislator first to get people_id from a name. Returns vote positions (Yea/Nay/NV/Absent) for each bill with roll call details. Duplicate bill_ids are deduplicated. Roll calls are checked most recent first, in pages of max_roll_calls_per_bill (default 5); use each bill's next_offset to check older roll calls.",
     {
       people_id: z
         .number()
@@ -192,18 +161,22 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
         .describe(
           "Max roll calls to fetch per bill (default 5, most recent first). Lower values reduce API quota usage."
         ),
+      roll_call_offset: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .default(0)
+        .describe("Number of newer roll calls to skip per bill when continuing a search"),
     },
-    async ({ people_id, bill_ids, chamber, max_roll_calls_per_bill }) => {
+    async ({
+      people_id,
+      bill_ids,
+      chamber,
+      max_roll_calls_per_bill,
+      roll_call_offset,
+    }) => {
       try {
-        const uniqueBillIds: number[] = [];
-        const seenBillIds = new Set<number>();
-        for (const billId of bill_ids) {
-          if (!seenBillIds.has(billId)) {
-            seenBillIds.add(billId);
-            uniqueBillIds.push(billId);
-          }
-        }
-
         const votes: Array<{
           bill_id: number;
           bill_number: string;
@@ -216,27 +189,28 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
           vote: string;
           vote_id: number;
         }> = [];
+        const roll_call_coverage: Array<{
+          bill_id: number;
+          available: number;
+          selected: number;
+          offset: number;
+          next_offset?: number;
+        }> = [];
         const errors: string[] = [];
         let legislatorName = "";
 
-        const getBillCached = createCachedFetcher((billId: number) =>
-          client.getBill(billId)
-        );
         const getRollCallCached = createCachedFetcher((rollCallId: number) =>
           client.getRollCall(rollCallId)
         );
 
         // Fetch all bills in batches to avoid rate limits
-        const billResults = await processBatchedCached(
-          uniqueBillIds,
+        const billResults = await processUniqueBatched(
+          bill_ids,
           (billId) => billId,
-          (billId) => getBillCached(billId)
+          (billId) => client.getBill(billId)
         );
 
-        for (let i = 0; i < billResults.length; i++) {
-          const result = billResults[i];
-          const billId = uniqueBillIds[i];
-
+        for (const { item: billId, result } of billResults) {
           if (result.status === "rejected") {
             errors.push(`Bill ${billId}: ${formatError(result.reason)}`);
             continue;
@@ -249,23 +223,29 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
             voteRefs = voteRefs.filter((v) => v.chamber === chamber);
           }
 
-          const hasDates = voteRefs.some((v) => v.date);
-          if (hasDates) {
-            voteRefs = [...voteRefs].sort((a, b) => b.date.localeCompare(a.date));
-          }
-          voteRefs = voteRefs.slice(0, max_roll_calls_per_bill);
+          voteRefs = [...voteRefs].sort((a, b) => b.date.localeCompare(a.date));
+          const available = voteRefs.length;
+          voteRefs = voteRefs.slice(
+            roll_call_offset,
+            roll_call_offset + max_roll_calls_per_bill
+          );
+          const nextOffset = roll_call_offset + voteRefs.length;
+          roll_call_coverage.push({
+            bill_id: billId,
+            available,
+            selected: voteRefs.length,
+            offset: roll_call_offset,
+            next_offset: nextOffset < available ? nextOffset : undefined,
+          });
 
           // Fetch all roll calls for this bill in batches
-          const rollCallResults = await processBatchedCached(
+          const rollCallResults = await processUniqueBatched(
             voteRefs,
             (voteRef) => voteRef.roll_call_id,
             (voteRef) => getRollCallCached(voteRef.roll_call_id)
           );
 
-          for (let j = 0; j < rollCallResults.length; j++) {
-            const rcResult = rollCallResults[j];
-            const voteRef = voteRefs[j];
-
+          for (const { item: voteRef, result: rcResult } of rollCallResults) {
             if (rcResult.status === "rejected") {
               errors.push(
                 `Roll call ${voteRef.roll_call_id}: ${formatError(rcResult.reason)}`
@@ -317,6 +297,7 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
           },
           votes,
           summary,
+          roll_call_coverage,
           errors: errors.length > 0 ? errors : undefined,
         });
       } catch (error) {
@@ -330,7 +311,7 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
   // ============================================
   server.tool(
     "legiscan_get_primary_authored",
-    "Get only bills where a legislator is the PRIMARY author (sponsor_type_id=PrimarySponsor), not co-sponsor. Use find_legislator first to get people_id from a name. Pass state or session_id when you want results scoped to a specific legislature and timeframe; otherwise this returns all available sessions for that legislator. Fetches at most limit sponsored bills (default 100) to limit API quota usage; check truncated in the response.",
+    "Get only bills where a legislator is the PRIMARY author (sponsor_type_id=PrimarySponsor), not co-sponsor. Use find_legislator first to get people_id from a name. Pass state or session_id when you want results scoped to a specific legislature and timeframe; otherwise this returns all available sessions for that legislator. Fetches a page of at most limit sponsored bills (default 100); use next_offset to inspect the remainder.",
     {
       people_id: z
         .number()
@@ -356,8 +337,15 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
         .describe(
           "Max sponsored bills to fetch and check (default 100). Lower values reduce API quota usage."
         ),
+      offset: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .default(0)
+        .describe("Number of sponsored bills to skip when continuing a search"),
     },
-    async ({ people_id, session_id, state, limit }) => {
+    async ({ people_id, session_id, state, limit, offset }) => {
       try {
         // Get all sponsored bills
         const sponsoredBills = await client.getSponsoredList(people_id);
@@ -386,8 +374,8 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
           };
         }
 
-        const truncated = filteredBills.length > limit;
-        const billsToProcess = filteredBills.slice(0, limit);
+        const billsToProcess = filteredBills.slice(offset, offset + limit);
+        const nextOffset = offset + billsToProcess.length;
 
         const primaryAuthored: Array<{
           bill_id: number;
@@ -402,21 +390,14 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
         }> = [];
         const errors: string[] = [];
         let legislatorName = "";
-        const getBillCached = createCachedFetcher((billId: number) =>
-          client.getBill(billId)
-        );
-
         // Fetch all bill details in batches to avoid rate limits
-        const billResults = await processBatchedCached(
+        const billResults = await processUniqueBatched(
           billsToProcess,
           (billInfo) => billInfo.bill_id,
-          (billInfo) => getBillCached(billInfo.bill_id)
+          (billInfo) => client.getBill(billInfo.bill_id)
         );
 
-        for (let i = 0; i < billResults.length; i++) {
-          const result = billResults[i];
-          const billInfo = billsToProcess[i];
-
+        for (const { item: billInfo, result } of billResults) {
           if (result.status === "rejected") {
             errors.push(`Bill ${billInfo.bill_id}: ${formatError(result.reason)}`);
             continue;
@@ -451,7 +432,9 @@ export function registerCompositeTools(server: McpServer, client: LegiScanClient
           },
           scope,
           limit,
-          truncated: truncated || undefined,
+          offset,
+          next_offset: nextOffset < filteredBills.length ? nextOffset : undefined,
+          truncated: nextOffset < filteredBills.length || undefined,
           total_sponsored: filteredBills.length,
           total_sponsored_all_sessions:
             filteredBills.length === sponsoredBills.length
