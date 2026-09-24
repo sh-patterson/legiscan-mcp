@@ -20,7 +20,9 @@ IMPORTANT: Never ask the user for internal IDs (people_id, bill_id, session_id, 
 Common chains:
 - "How did X vote on Y?" → legiscan_find_legislator → legiscan_search → legiscan_get_legislator_votes
 - "What bills did X author?" → legiscan_find_legislator → legiscan_get_primary_authored using the returned session.session_id or state
-- "What's happening with [topic]?" → legiscan_search → legiscan_get_bill for top results`;
+- "What's happening with [topic]?" → legiscan_search → legiscan_get_bill for top results
+
+When a composite tool returns next_offset, continue with that offset before claiming the list is complete. For votes, use the bill's roll_call_coverage entry and query that bill_id with roll_call_offset. For authored bills, reuse the same session_id or state with offset.`;
 
 /**
  * Create and configure the MCP server with all tools registered.

@@ -156,6 +156,8 @@ These cut tool-call volume and simplify instructions to your agent:
 - `legiscan_get_primary_authored`: separate primary-authored from co-sponsored bills.
 - `legiscan_get_legislator_votes`: pull vote positions across many bills in one request.
 
+Both composite tools cap API lookups per call. In `legiscan_get_legislator_votes`, check each bill's `roll_call_coverage`: `selected` is the number of roll-call references inspected on that page, and `next_offset` means older roll calls remain. Call again with that bill ID and `roll_call_offset: next_offset` before treating an empty vote list as complete. In `legiscan_get_primary_authored`, pass `offset: next_offset` with the same `people_id` and session or state until `next_offset` is absent. Results can change between pages if LegiScan updates its lists.
+
 ## Prompt Templates
 
 ### A) Opposition research on one legislator
@@ -192,7 +194,7 @@ The composite tools dramatically reduce agent-to-tool round trips for common wor
 | Workflow                                         | Manual MCP Steps                                                                    | With Composites                                           |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | Get votes for 1 legislator on 10 bills           | Find legislator → search/resolve bills → inspect each bill → inspect each roll call | 1 tool call once you have `bill_ids`                      |
-| Filter primary authored from 150 sponsored bills | Sponsored list → fetch each bill → inspect sponsors                                 | 1 tool call, optionally scoped by `state` or `session_id` |
+| Filter primary authored from 150 sponsored bills | Sponsored list → fetch each bill → inspect sponsors                                 | 1 tool call with `limit: 150`, optionally scoped by `state` or `session_id` |
 | Find legislator by name                          | Session discovery → session people lookup → manual matching                         | 1 tool call                                               |
 
 ## Research Tips
@@ -212,7 +214,7 @@ The composite tools dramatically reduce agent-to-tool round trips for common wor
 npm run build        # Compile TypeScript
 npm run typecheck    # Type-check src + tests
 npm test             # Run deterministic unit tests (no API key)
-npm run test:e2e     # Run real-world workflow tests (skips cleanly without API key)
+npm run test:e2e     # Run offline MCP/HTTP workflows; also run live scenarios with an API key
 npm run test:live    # Run live API integration tests (requires API key)
 npm run test:coverage # Run unit tests with coverage
 npm run lint         # Check for lint errors
@@ -222,7 +224,7 @@ npm run format       # Format code with Prettier
 ## Testing Modes
 
 - `npm test` / `npm run test:unit`: Fast deterministic tests with mocked network calls.
-- `npm run test:e2e`: Research workflow tests based on real legislative analysis tasks. Skips if `LEGISCAN_API_KEY` is unavailable.
+- `npm run test:e2e`: Runs provider-free MCP-to-HTTP workflow tests. Its real LegiScan scenarios run only when `LEGISCAN_API_KEY` is available.
 - `npm run test:live`: Real LegiScan API integration tests. Requires `LEGISCAN_API_KEY`.
 
 ## API Limits
